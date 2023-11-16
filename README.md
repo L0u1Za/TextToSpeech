@@ -31,7 +31,7 @@ If you have some issues using bash utilities, you may download model directly fr
 You may check the correct work of implementation using unit tests
 
 ```shell
-python -m unittest discover hw_asr/tests
+python -m unittest discover src/tests
 ```
 
 ## Run test model with prepared configuration
@@ -54,13 +54,13 @@ of [pytorch-template](https://github.com/victoresque/pytorch-template) repositor
 You can use this project with docker. Quick start:
 
 ```bash
-docker build -t my_hw_asr_image .
+docker build -t my_src_image .
 docker run \
    --gpus '"device=0"' \
    -it --rm \
    -v /path/to/local/storage/dir:/repos/asr_project_template/data/datasets \
    -e WANDB_API_KEY=<your_wandb_api_key> \
-	my_hw_asr_image python -m unittest
+	my_src_image python -m unittest
 ```
 
 Notes:
