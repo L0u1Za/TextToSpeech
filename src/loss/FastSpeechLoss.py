@@ -9,9 +9,9 @@ class FastSpeechLoss(nn.Module):
 
         self.names = names
 
-    def forward(self, mel, spectrogram, predicted, predictor_targets, **batch):
+    def forward(self, pred_mel, spectrogram, predicted, predictor_targets, **batch):
         assert len(predicted) == len(predictor_targets)
-        mel_loss = self.l1_loss(mel, spectrogram)
+        mel_loss = self.l1_loss(pred_mel, spectrogram)
 
         predictor_losses = [self.mse_loss(predicted[i],
                                                predictor_targets[i].float()) for i in range(len(predicted))]

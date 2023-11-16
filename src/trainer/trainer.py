@@ -64,7 +64,7 @@ class Trainer(BaseTrainer):
         """
         Move all necessary tensors to the HPU
         """
-        for tensor_for_gpu in ["spectrogram", "text_encoded"]:
+        for tensor_for_gpu in ["spectrogram", "phone_encoded", "src_pos", "mel_pos", "phone_duration", "pitch", "energy"]:
             batch[tensor_for_gpu] = batch[tensor_for_gpu].to(device)
         return batch
 
@@ -108,13 +108,13 @@ class Trainer(BaseTrainer):
                 self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
                 self.logger.debug(
                     "Train Epoch: {} {} Loss: {:.6f}".format(
-                        epoch, self._progress(batch_idx), batch["loss"].item()
+                        epoch, self._progress(batch_idx), batch["total_loss"].item()
                     )
                 )
                 self.writer.add_scalar(
                     "learning rate", self.lr_scheduler.get_last_lr()[0]
                 )
-                self._log_predictions(**batch)
+                #self._log_predictions(**batch)
                 self._log_spectrogram(batch["spectrogram"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
@@ -139,14 +139,18 @@ class Trainer(BaseTrainer):
         if type(outputs) is dict:
             batch.update(outputs)
         else:
-            batch["mel"] = outputs[0]
-            batch["predicted"] = outputs[1:]
+            batch["pred_mel"] = outputs[0]
+            batch["predicted"] = outputs[1]
+
+        batch["predictor_targets"] = [batch["phone_duration"], batch["pitch"], batch["energy"]]
 
         batch["loss"] = self.criterion(**batch)
+        final_loss = torch.tensor(0.0).to(self.device)
+        for loss in batch["loss"]:
+            final_loss += loss
+        batch["total_loss"] = final_loss
+
         if is_train:
-            final_loss = torch.tensor(0.0).to(self.device)
-            for loss in batch["loss"]:
-                final_loss += loss
             final_loss.backward()
 
             self._clip_grad_norm()
@@ -183,7 +187,7 @@ class Trainer(BaseTrainer):
                 )
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
-            self._log_predictions(**batch)
+            #self._log_predictions(**batch)
             self._log_spectrogram(batch["spectrogram"])
 
         # add histogram of model parameters to the tensorboard

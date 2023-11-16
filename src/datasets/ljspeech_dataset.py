@@ -126,21 +126,28 @@ class LJspeechDataset(BaseDataset):
                 text_grid.get_tier_by_name("phones")
             )
         audio_wave = self.load_audio(audio_path)
-        audio_wave, audio_spec = self.process_wave(audio_wave)
-        duration = audio_wave.size(1) / self.config_parser["preprocessing"]["sr"]
 
+        audio_wave = audio_wave[:, int(start * self.config_parser["preprocessing"]["sr"]): int(end * self.config_parser["preprocessing"]["sr"])]
+        audio_wave, audio_spec = self.process_wave(audio_wave, name="spectrogram")
+
+        all_dur = sum(durations)
+        duration = audio_wave.size(1) / self.config_parser["preprocessing"]["sr"]
+        audio_spec = audio_spec[:,:all_dur]
         pitch, t = pw.dio(
             audio_wave.numpy()[0].astype('float64'),
             self.config_parser["preprocessing"]["sr"],
-            frame_period=self.config_parser["preprocessing"]["stft"]["hop_length"] / self.config_parser["preprocessing"]["sr"] * 1000,
+            frame_period=self.config_parser["preprocessing"]["stft"]["args"]["hop_length"] / self.config_parser["preprocessing"]["sr"] * 1000,
         )
         pitch = torch.tensor(pw.stonemask(audio_wave.numpy()[0].astype('float64'), pitch, t, self.config_parser["preprocessing"]["sr"]))
+        pitch = pitch[:all_dur]
 
-        energy = torch.linalg.norm(audio_spec, ord=2, dim=1)
-
+        _, mel_spec = self.process_wave(audio_wave, name="stft")
+        energy = torch.linalg.norm(mel_spec, ord=2, dim=1).squeeze(0)
+        energy = energy[:all_dur]
         return {
             "audio": audio_wave,
             "spectrogram": audio_spec,
+            "mel": mel_spec,
             "duration": duration,
             "phones": phones,
             "phone_durations": durations,
@@ -151,7 +158,20 @@ class LJspeechDataset(BaseDataset):
             "pitch": pitch,
             "energy": energy
         }
-
+    def process_wave(self, audio_tensor_wave, name="spectrogram"):
+        with torch.no_grad():
+            if self.wave_augs is not None:
+                audio_tensor_wave = self.wave_augs(audio_tensor_wave)
+            wave2spec = self.config_parser.init_obj(
+                self.config_parser["preprocessing"][name],
+                torchaudio.transforms,
+            )
+            audio_tensor_spec = wave2spec(audio_tensor_wave)
+            if self.spec_augs is not None:
+                audio_tensor_spec = self.spec_augs(audio_tensor_spec)
+            if self.log_spec:
+                audio_tensor_spec = torch.log(audio_tensor_spec + 1e-5)
+            return audio_tensor_wave, audio_tensor_spec
     def get_alignment(self, tier):
         sil_phones = ["sil", "sp", "spn"]
 
@@ -181,13 +201,13 @@ class LJspeechDataset(BaseDataset):
 
             durations.append(
                 int(
-                    np.round(e * self.config_parser["preprocessing"]["sr"] / self.config_parser["preprocessing"]["stft"]["hop_length"])
-                    - np.round(s * self.config_parser["preprocessing"]["sr"] / self.config_parser["preprocessing"]["stft"]["hop_length"])
+                    np.round(e * self.config_parser["preprocessing"]["sr"] / self.config_parser["preprocessing"]["stft"]["args"]["hop_length"])
+                    - np.round(s * self.config_parser["preprocessing"]["sr"] / self.config_parser["preprocessing"]["stft"]["args"]["hop_length"])
                 )
             )
 
         # Trim tailing silences
-        #phones = phones[:end_idx]
-        #durations = durations[:end_idx]
+        phones = phones[:end_idx]
+        durations = durations[:end_idx]
 
         return phones, durations, start_time, end_time

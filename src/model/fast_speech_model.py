@@ -1,70 +1,10 @@
 import torch
 from torch import nn
 from src.base import BaseModel
-from torch.nn.functional import scaled_dot_product_attention
 import torch.nn.functional as F
 import numpy as np
+from src.utils.util import pad
 
-class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
-
-    def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
-        super().__init__()
-
-        self.n_head = n_head
-        self.d_k = d_k
-        self.d_v = d_v
-        self.d_model = d_model
-
-        self.w_qs = nn.Linear(d_model, n_head * d_k)
-        self.w_ks = nn.Linear(d_model, n_head * d_k)
-        self.w_vs = nn.Linear(d_model, n_head * d_v)
-
-        self.layer_norm = nn.LayerNorm(d_model)
-
-        self.fc = nn.Linear(n_head * d_v, d_model)
-        nn.init.xavier_normal_(self.fc.weight)
-
-        self.dropout = nn.Dropout(dropout)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-         # normal distribution initialization better than kaiming(default in pytorch)
-        nn.init.normal_(self.w_qs.weight, mean=0,
-                        std=np.sqrt(2.0 / (self.d_model + self.d_k)))
-        nn.init.normal_(self.w_ks.weight, mean=0,
-                        std=np.sqrt(2.0 / (self.d_model + self.d_k)))
-        nn.init.normal_(self.w_vs.weight, mean=0,
-                        std=np.sqrt(2.0 / (self.d_model + self.d_v)))
-    def forward(self, q, k, v, mask=None):
-        d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
-
-        sz_b, len_q, _ = q.size()
-        sz_b, len_k, _ = k.size()
-        sz_b, len_v, _ = v.size()
-
-        residual = q
-
-        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
-        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
-        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
-
-        q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_q, d_k)  # (n*b) x lq x dk
-        k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_k, d_k)  # (n*b) x lk x dk
-        v = v.permute(2, 0, 1, 3).contiguous().view(-1, len_v, d_v)  # (n*b) x lv x dv
-
-        if mask is not None:
-            mask = mask.repeat(n_head, 1, 1)  # (n*b) x .. x ..
-        output, attn = scaled_dot_product_attention(q, k, v, mask=mask, scale=self.d_k**0.5)
-
-        output = output.view(n_head, sz_b, len_q, d_v)
-        output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
-
-        output = self.dropout(self.fc(output))
-        output = self.layer_norm(output + residual)
-
-        return output, attn
 
 class PositionwiseFeedForward(nn.Module):
     ''' A two-feed-forward-layer module '''
@@ -106,14 +46,14 @@ class FFTBlock(nn.Module):
                  fft_conv1d_padding,
                  dropout=0.1):
         super(FFTBlock, self).__init__()
-        self.slf_attn = MultiHeadAttention(
-            n_head, d_model, d_k, d_v, dropout=dropout)
+        self.slf_attn = nn.MultiheadAttention(
+            d_model, n_head, dropout=dropout, batch_first=True)
         self.pos_ffn = PositionwiseFeedForward(
             d_model, d_inner, fft_conv1d_kernel, fft_conv1d_padding, dropout=dropout)
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
         enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)
+            enc_input, enc_input, enc_input, attn_mask=slf_attn_mask)
 
         if non_pad_mask is not None:
             enc_output *= non_pad_mask
@@ -159,6 +99,7 @@ class Encoder(nn.Module):
 
         self.pad = pad
         n_position = max_seq_len + 1
+        self.n_head = encoder_head
 
         self.src_word_emb = nn.Embedding(
             vocab_size,
@@ -176,8 +117,8 @@ class Encoder(nn.Module):
             encoder_dim,
             encoder_conv1d_filter_size,
             encoder_head,
-            encoder_dim // encoder_head,
-            encoder_dim // encoder_head,
+            encoder_dim,
+            encoder_dim,
             fft_conv1d_kernel,
             fft_conv1d_padding,
             dropout=dropout
@@ -188,8 +129,9 @@ class Encoder(nn.Module):
         enc_slf_attn_list = []
 
         # -- Prepare masks
-        slf_attn_mask = MasksHandler.get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, pad=self.pad)
-        non_pad_mask = MasksHandler.get_non_pad_mask(src_seq, pad=self.pad)
+        slf_attn_mask = MasksHandler.get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, pad=self.pad).to(src_seq.device)
+        slf_attn_mask = slf_attn_mask.repeat(self.n_head, 1, 1)
+        non_pad_mask = MasksHandler.get_non_pad_mask(src_seq, pad=self.pad).to(src_seq.device)
 
         # -- Forward
         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
@@ -211,6 +153,7 @@ class Decoder(nn.Module):
 
         super(Decoder, self).__init__()
 
+        self.n_head = decoder_head
         n_position = max_seq_len + 1
         self.pad = pad
 
@@ -224,8 +167,8 @@ class Decoder(nn.Module):
             decoder_dim,
             decoder_conv1d_filter_size,
             decoder_head,
-            decoder_dim // decoder_head,
-            decoder_dim // decoder_head,
+            decoder_dim,
+            decoder_dim,
             fft_conv1d_kernel,
             fft_conv1d_padding,
             dropout=dropout
@@ -237,6 +180,7 @@ class Decoder(nn.Module):
 
         # -- Prepare masks
         slf_attn_mask = MasksHandler.get_attn_key_pad_mask(seq_k=enc_pos, seq_q=enc_pos, pad=self.pad)
+        slf_attn_mask = slf_attn_mask.repeat(self.n_head, 1, 1)
         non_pad_mask = MasksHandler.get_non_pad_mask(enc_pos, pad=self.pad)
 
         # -- Forward
@@ -281,68 +225,94 @@ class Predictor(nn.Module):
             nn.Linear(filter_channels, 1)
         )
     def forward(self, inputs):
-        return self.nn(inputs)
+        return self.nn(inputs).squeeze(-1)
 
 class LengthRegulator(nn.Module):
-    """ Length Regulator """
+    """Length Regulator"""
 
     def __init__(self):
         super().__init__()
 
-    def create_alignment(base_mat, duration_predictor_output):
-        N, L = duration_predictor_output.shape
-        for i in range(N):
-            count = 0
-            for j in range(L):
-                for k in range(duration_predictor_output[i][j]):
-                    base_mat[i][count+k][j] = 1
-                count = count + duration_predictor_output[i][j]
-        return base_mat
+    def LR(self, x, duration, max_len):
+        output = list()
+        mel_len = list()
+        for batch, expand_target in zip(x, duration):
+            expanded = self.expand(batch, expand_target)
+            output.append(expanded)
+            mel_len.append(expanded.shape[0])
 
-    def LR(self, x, duration_predictor_output, mel_max_length=None):
-        expand_max_len = torch.max(
-            torch.sum(duration_predictor_output, -1), -1)[0]
-        alignment = torch.zeros(duration_predictor_output.size(0),
-                                expand_max_len,
-                                duration_predictor_output.size(1)).numpy()
-        alignment = self.create_alignment(alignment,
-                                     duration_predictor_output.cpu().numpy())
-        alignment = torch.from_numpy(alignment).to(x.device)
+        if max_len is not None:
+            output = pad(output, max_len)
+        else:
+            output = pad(output)
 
-        output = alignment @ x
-        if mel_max_length:
-            output = F.pad(
-                output, (0, 0, 0, mel_max_length-output.size(1), 0, 0))
-        return output
+        return output, torch.LongTensor(mel_len).to(x.device)
 
-    def forward(self, x, alpha=1.0, target=None, mel_max_length=None):
-        output, mel_len = self.LR(alpha * x, target, mel_max_length)
+    def expand(self, batch, predicted):
+        out = list()
+
+        for i, vec in enumerate(batch):
+            expand_size = predicted[i].item()
+            out.append(vec.expand(max(int(expand_size), 0), -1))
+        out = torch.cat(out, 0)
+
+        return out
+
+    def forward(self, x, duration, max_len):
+        output, mel_len = self.LR(x, duration, max_len)
         return output, mel_len
 
 class VarianceAdaptor(nn.Module):
-    def __init__(self, in_channels, filter_channels, kernel_size, dropout):
+    def __init__(self, in_channels, filter_channels, kernel_size, n_bins, encoder_dim, dropout):
         super().__init__()
+
+        pitch_min, pitch_max = (0, 1000)
+        self.pitch_quantization = nn.Parameter(
+            torch.logspace(np.log(pitch_min), np.log(pitch_max), n_bins - 1),
+            requires_grad=False,
+        )
+        energy_min, energy_max = (0, 1000)
+        self.energy_quantization = nn.Parameter(
+            torch.linspace(energy_min, energy_max, n_bins - 1),
+            requires_grad=False,
+        )
 
         self.duration_predictor = Predictor(in_channels, filter_channels, kernel_size, dropout)
         self.length_regulator = LengthRegulator()
 
         self.pitch_predictor = Predictor(in_channels, filter_channels, kernel_size, dropout)
+        self.pitch_embedding = nn.Embedding(n_bins, encoder_dim)
+
         self.energy_predictor = Predictor(in_channels, filter_channels, kernel_size, dropout)
+        self.energy_embedding = nn.Embedding(n_bins, encoder_dim)
 
-    def forward(self, inputs):
+    def forward(self, inputs, true_duration=None, true_pitch=None, true_energy=None, mel_max_len=None):
         durations = self.duration_predictor(inputs)
-        outputs = self.LR(inputs, durations)
+        if (self.train and true_duration is not None):
+            outputs, _ = self.length_regulator(inputs, duration=true_duration, max_len=mel_max_len)
+        else:
+            outputs, _ = self.length_regulator(inputs, duration=durations, max_len=mel_max_len)
 
-        pitches = self.pitch_predictor(inputs)
-        outputs += pitches
+        pitches = self.pitch_predictor(outputs)
+        if (self.train and true_pitch is not None):
+            indices = torch.bucketize(true_pitch, self.pitch_quantization, out_int32=True)
+        else:
+            indices = torch.bucketize(pitches, self.pitch_quantization, out_int32=True)
+        pitch_embeds = self.pitch_embedding(indices)
+        outputs = outputs + pitch_embeds
 
-        energies = self.energy_predictor(inputs)
-        outputs += energies
+        energies = self.energy_predictor(outputs)
+        if (self.train and true_energy is not None):
+            indices = torch.bucketize(true_energy, self.energy_quantization, out_int32=True)
+        else:
+            indices = torch.bucketize(energies, self.energy_quantization, out_int32=True)
+        energy_embeds = self.energy_embedding(indices)
+        outputs = outputs + energy_embeds
 
         return outputs, (durations, pitches, energies)
 
 class FastSpeech2(nn.Module):
-    def __init__(self, vocab_size, encoder_dim, encoder_conv1d_filter_size, encoder_head, encoder_n_layer, max_seq_len, pad, encoder_dropout, decoder_dim, decoder_conv1d_filter_size, decoder_head, decoder_n_layer, decoder_dropout, fft_conv1d_kernel, fft_conv1d_padding, variance_filter_size, variance_kernel_size, variance_dropout, **batch):
+    def __init__(self, vocab_size, encoder_dim, encoder_conv1d_filter_size, encoder_head, encoder_n_layer, max_seq_len, pad, encoder_dropout, decoder_dim, decoder_conv1d_filter_size, decoder_head, decoder_n_layer, decoder_dropout, fft_conv1d_kernel, fft_conv1d_padding, variance_filter_size, variance_kernel_size, variance_n_bins, variance_dropout, num_mels, **batch):
         super().__init__()
         self.encoder = Encoder(vocab_size,
                                encoder_dim,
@@ -357,6 +327,8 @@ class FastSpeech2(nn.Module):
         self.variance_adaptor = VarianceAdaptor(in_channels=encoder_dim,
                                                 filter_channels=variance_filter_size,
                                                 kernel_size=variance_kernel_size,
+                                                n_bins=variance_n_bins,
+                                                encoder_dim=encoder_dim,
                                                 dropout=variance_dropout)
         self.decoder = Decoder(decoder_dim,
                                decoder_conv1d_filter_size,
@@ -367,6 +339,14 @@ class FastSpeech2(nn.Module):
                                decoder_dropout,
                                fft_conv1d_kernel,
                                fft_conv1d_padding)
+        self.head = nn.Linear(decoder_dim,
+                             num_mels)
 
-    def forward(self, text, **batch):
-        pass
+    def forward(self, phone_encoded, src_pos, mel_pos=None, mel_max_len=None, phone_duration=None, pitch=None, energy=None, **batch):
+        """ phone_duration, pitch, energy -> train """
+        outputs, non_pad_mask = self.encoder(phone_encoded, src_pos)
+        outputs, (duration, pitch, energy) = self.variance_adaptor(outputs, phone_duration, pitch, energy, mel_max_len)
+        outputs = self.decoder(outputs, mel_pos)
+        outputs = self.head(outputs).transpose(1, 2)
+
+        return outputs, (duration, pitch, energy)

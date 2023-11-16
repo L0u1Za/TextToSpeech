@@ -5,12 +5,16 @@
     "sr": 22050,
     "g2p": true,
     "stft": {
-      "hop_length": 1024,
+      "hop_length": 256,
       "win_length": 1024
     },
     "spectrogram": {
       "type": "MelSpectrogram",
       "args": {
+        "sample_rate": 22050,
+        "win_length": 1024,
+        "hop_length": 256,
+        "n_fft": 1024
       }
     },
     "log_spec": false
@@ -44,6 +48,8 @@
       "variance_kernel_size": 3,
       "variance_dropout": 0.5,
       "variance_n_bins": 256,
+
+      "num_mels": 80,
 
       "pad": 0
     }
