@@ -1,7 +1,7 @@
 from .char_text_encoder import CharTextEncoder
-from .ctc_char_text_encoder import CTCCharTextEncoder
+from .phoneme_text_encoder import PhonemeTextEncoder
 
 __all__ = [
     "CharTextEncoder",
-    "CTCCharTextEncoder"
+    "PhonemeTextEncoder"
 ]

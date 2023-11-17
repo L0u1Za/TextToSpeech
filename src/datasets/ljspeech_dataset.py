@@ -159,7 +159,6 @@ class LJspeechDataset(BaseDataset):
             "phones": phones,
             "phone_durations": durations,
             "text": data_dict["text"],
-            "text_encoded": self.text_encoder.encode(data_dict["text"]),
             "phone_encoded": self.text_encoder.encode(' '.join(phones)),
             "audio_path": audio_path,
             "pitch": pitch,

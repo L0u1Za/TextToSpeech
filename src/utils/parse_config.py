@@ -10,7 +10,7 @@ from pathlib import Path
 from src import text_encoder as text_encoder_module
 from src.base.base_text_encoder import BaseTextEncoder
 from src.logger import setup_logging
-from src.text_encoder import CTCCharTextEncoder
+from src.text_encoder import PhonemeTextEncoder
 from src.utils import read_json, write_json, ROOT_PATH
 
 
@@ -140,7 +140,7 @@ class ConfigParser:
     def get_text_encoder(self) -> BaseTextEncoder:
         if self._text_encoder is None:
             if "text_encoder" not in self._config:
-                self._text_encoder = CTCCharTextEncoder()
+                self._text_encoder = PhonemeTextEncoder()
             else:
                 self._text_encoder = self.init_obj(self["text_encoder"],
                                                    default_module=text_encoder_module)

@@ -266,12 +266,12 @@ class VarianceAdaptor(nn.Module):
     def __init__(self, in_channels, filter_channels, kernel_size, n_bins, encoder_dim, dropout):
         super().__init__()
 
-        pitch_min, pitch_max = (1, 1000)
+        pitch_min, pitch_max = (-3, 200)
         self.pitch_quantization = nn.Parameter(
-            torch.logspace(np.log(pitch_min), np.log(pitch_max), n_bins - 1),
+            torch.linspace(pitch_min, pitch_max, n_bins - 1), #torch.logspace(np.log(pitch_min), np.log(pitch_max), n_bins - 1),
             requires_grad=False,
         )
-        energy_min, energy_max = (1, 1000)
+        energy_min, energy_max = (-2, 200)
         self.energy_quantization = nn.Parameter(
             torch.linspace(energy_min, energy_max, n_bins - 1),
             requires_grad=False,
