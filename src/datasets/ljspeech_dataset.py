@@ -132,7 +132,7 @@ class LJspeechDataset(BaseDataset):
 
         all_dur = sum(durations)
         duration = audio_wave.size(1) / self.config_parser["preprocessing"]["sr"]
-        audio_spec = audio_spec[:,:all_dur]
+        audio_spec = audio_spec[:,:,:all_dur]
         pitch, t = pw.dio(
             audio_wave.numpy()[0].astype('float64'),
             self.config_parser["preprocessing"]["sr"],
@@ -142,6 +142,7 @@ class LJspeechDataset(BaseDataset):
         pitch = pitch[:all_dur]
 
         _, mel_spec = self.process_wave(audio_wave, name="stft")
+        mel_spec = mel_spec[:,:,:all_dur]
         energy = torch.linalg.norm(mel_spec, ord=2, dim=1).squeeze(0)
         energy = energy[:all_dur]
         return {

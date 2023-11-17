@@ -62,29 +62,27 @@
   },
   "data": {
     "train": {
-      "batch_size": 5,
+      "batch_size": 2,
       "num_workers": 5,
       "datasets": [
         {
           "type": "LJspeechDataset",
           "args": {
             "part": "train",
-            "max_audio_length": 40.0,
-            "max_text_length": 400,
-            "limit": 5
+            "limit": 2
           }
         }
       ]
     },
     "test": {
-      "batch_size": 5,
+      "batch_size": 2,
       "num_workers": 5,
       "datasets": [
         {
           "type": "LJspeechDataset",
           "args": {
             "part": "test",
-            "limit": 5
+            "limit": 2
           }
         }
       ]
