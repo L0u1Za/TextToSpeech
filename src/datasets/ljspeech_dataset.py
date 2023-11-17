@@ -15,6 +15,8 @@ from speechbrain.utils.data_utils import download_file
 from tqdm import tqdm
 import torch
 
+from time import time
+
 logger = logging.getLogger(__name__)
 
 URL_LINKS = {
@@ -148,6 +150,7 @@ class LJspeechDataset(BaseDataset):
         mel_spec = mel_spec[:,:,:all_dur]
         energy = torch.linalg.norm(mel_spec, ord=2, dim=1).squeeze(0)
         energy = energy[:all_dur]
+
         return {
             "audio": audio_wave,
             "spectrogram": audio_spec,

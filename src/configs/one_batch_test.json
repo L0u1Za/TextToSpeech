@@ -63,13 +63,10 @@
   "data": {
     "train": {
       "batch_size": 2,
-      "num_workers": 5,
       "datasets": [
         {
           "type": "LJspeechDataset",
           "args": {
-            "data_dir": "/kaggle/working/",
-            "index_dir": "/kaggle/working/",
             "part": "train",
             "limit": 2
           }
@@ -78,13 +75,10 @@
     },
     "test": {
       "batch_size": 2,
-      "num_workers": 5,
       "datasets": [
         {
           "type": "LJspeechDataset",
           "args": {
-            "data_dir": "/kaggle/working/",
-            "index_dir": "/kaggle/working/",
             "part": "test",
             "limit": 2
           }
@@ -123,7 +117,6 @@
     "early_stop": 100,
     "visualize": "wandb",
     "wandb_project": "tts_project",
-    "len_epoch": 100,
     "grad_norm_clip": 10
   }
 }

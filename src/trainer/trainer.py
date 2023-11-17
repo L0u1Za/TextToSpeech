@@ -16,6 +16,7 @@ from src.logger.utils import plot_spectrogram_to_buf
 from src.metric.utils import calc_cer, calc_wer
 from src.utils import inf_loop, MetricTracker
 
+from time import time
 
 class Trainer(BaseTrainer):
     """
@@ -56,7 +57,7 @@ class Trainer(BaseTrainer):
             *criterion.names, "total_loss", "grad norm", *[m.name for m in self.metrics], writer=self.writer
         )
         self.evaluation_metrics = MetricTracker(
-            "loss", *[m.name for m in self.metrics], writer=self.writer
+            "total_loss", *[m.name for m in self.metrics], writer=self.writer
         )
 
     @staticmethod
@@ -158,9 +159,11 @@ class Trainer(BaseTrainer):
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
+            for i, loss in enumerate(batch["loss"]):
+                metrics.update(self.criterion.names[i], loss.item())
+
         metrics.update("total_loss", final_loss.item())
-        for i, loss in enumerate(batch["loss"]):
-            metrics.update(self.criterion.names[i], loss.item())
+
         for met in self.metrics:
             metrics.update(met.name, met(**batch))
         return batch
