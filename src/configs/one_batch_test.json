@@ -68,6 +68,8 @@
         {
           "type": "LJspeechDataset",
           "args": {
+            "data_dir": "/kaggle/working/",
+            "index_dir": "/kaggle/working/",
             "part": "train",
             "limit": 2
           }
@@ -81,6 +83,8 @@
         {
           "type": "LJspeechDataset",
           "args": {
+            "data_dir": "/kaggle/working/",
+            "index_dir": "/kaggle/working/",
             "part": "test",
             "limit": 2
           }
