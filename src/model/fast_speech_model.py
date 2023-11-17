@@ -129,9 +129,9 @@ class Encoder(nn.Module):
         enc_slf_attn_list = []
 
         # -- Prepare masks
-        slf_attn_mask = MasksHandler.get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, pad=self.pad).to(src_seq.device)
+        slf_attn_mask = MasksHandler.get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, pad=self.pad)
         slf_attn_mask = slf_attn_mask.repeat(self.n_head, 1, 1)
-        non_pad_mask = MasksHandler.get_non_pad_mask(src_seq, pad=self.pad).to(src_seq.device)
+        non_pad_mask = MasksHandler.get_non_pad_mask(src_seq, pad=self.pad)
 
         # -- Forward
         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
