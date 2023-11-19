@@ -50,8 +50,8 @@ def collate_fn(dataset_items: List[dict]):
     src_pos = torch.from_numpy(np.array(src_pos))
 
     length_mel = np.array(list())
-    for mel1 in mel:
-        length_mel = np.append(length_mel, mel1.size(1))
+    for mel1 in dataset_items:
+        length_mel = np.append(length_mel, mel1['mel'].size(2))
 
     mel_pos = list()
     max_mel_len = int(max(length_mel))

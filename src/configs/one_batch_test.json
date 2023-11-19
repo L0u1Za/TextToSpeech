@@ -7,6 +7,7 @@
     "stft": {
       "type": "MelSpectrogram",
       "args": {
+        "n_mels": 80,
         "sample_rate": 22050,
         "win_length": 1024,
         "hop_length": 256,
@@ -23,7 +24,7 @@
         "n_fft": 1024
       }
     },
-    "log_spec": false
+    "log_spec": true
   },
   "augmentations": {
     "wave": [],
@@ -102,14 +103,15 @@
     "type": "OneCycleLR",
     "args": {
       "steps_per_epoch": 100,
-      "epochs": 50,
+      "epochs": 100,
       "anneal_strategy": "cos",
       "max_lr": 3e-3,
       "pct_start": 0.2
     }
   },
   "trainer": {
-    "epochs": 15,
+    "epochs": 100,
+    "len_epoch": 100,
     "save_dir": "saved/",
     "save_period": 5,
     "verbosity": 2,

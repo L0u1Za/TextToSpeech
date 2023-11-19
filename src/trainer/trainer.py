@@ -115,8 +115,9 @@ class Trainer(BaseTrainer):
                 self.writer.add_scalar(
                     "learning rate", self.lr_scheduler.get_last_lr()[0]
                 )
-                #self._log_predictions(**batch)
+                self._log_predictions(**batch)
                 self._log_spectrogram(batch["spectrogram"])
+                self._log_spectrogram(batch["pred_mel"], "predicted_spectrogram")
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -192,6 +193,7 @@ class Trainer(BaseTrainer):
             self._log_scalars(self.evaluation_metrics)
             #self._log_predictions(**batch)
             self._log_spectrogram(batch["spectrogram"])
+            self._log_spectrogram(batch["pred_mel"], "predicted_spectrogram")
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
@@ -211,8 +213,9 @@ class Trainer(BaseTrainer):
     def _log_predictions(
             self,
             text,
-            log_probs,
-            log_probs_length,
+            phone,
+            predicted,
+            predictor_targets,
             audio_path,
             examples_to_log=10,
             *args,
@@ -221,29 +224,33 @@ class Trainer(BaseTrainer):
         # TODO: implement logging of beam search results
         if self.writer is None:
             return
-        argmax_inds = log_probs.cpu().argmax(-1).numpy()
-        argmax_inds = [
-            inds[: int(ind_len)]
-            for inds, ind_len in zip(argmax_inds, log_probs_length.numpy())
-        ]
-        argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
-        argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
-        tuples = list(zip(argmax_texts, text, argmax_texts_raw, audio_path))
+
+        tuples = list(zip(text, phone, *predicted, *predictor_targets, audio_path))
         shuffle(tuples)
         rows = {}
-        for pred, target, raw_pred, audio_path in tuples[:examples_to_log]:
-            target = BaseTextEncoder.normalize_text(target)
+        for txt, ph, duration_pred, pitch_pred, energy_pred, duration, pitch, energy, audio_path in tuples[:examples_to_log]:
+            d_p = ' '.join([str(s) for s in duration_pred.squeeze(). tolist()])
+            p_p = ' '.join([str(s) for s in pitch_pred.squeeze().tolist()])
+            e_p = ' '.join([str(s) for s in energy_pred.squeeze().tolist()])
+            d = ' '.join([str(s) for s in duration.squeeze().tolist()])
+            p = ' '.join([str(s) for s in pitch.squeeze().tolist()])
+            e = ' '.join([str(s) for s in energy.squeeze().tolist()])
             rows[Path(audio_path).name] = {
-                "target": target,
-                "raw prediction": raw_pred,
-                "predictions": pred,
+                "text": txt,
+                "phoneme": ph,
+                "duration_prediction": d_p,
+                "pitch_predicion": p_p,
+                "energy_prediction": e_p,
+                "duration_target": d,
+                "pitch_target": p,
+                "energy_target": e,
             }
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
 
-    def _log_spectrogram(self, spectrogram_batch):
-        spectrogram = random.choice(spectrogram_batch.cpu())
+    def _log_spectrogram(self, spectrogram_batch, spec_name="spectrogram"):
+        spectrogram = random.choice(spectrogram_batch.detach().cpu())
         image = PIL.Image.open(plot_spectrogram_to_buf(spectrogram))
-        self.writer.add_image("spectrogram", ToTensor()(image))
+        self.writer.add_image(spec_name, ToTensor()(image))
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):
