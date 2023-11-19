@@ -10,6 +10,7 @@ from torch.nn.utils import clip_grad_norm_
 from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
+from src.model.vocoder import Vocoder
 from src.base import BaseTrainer
 from src.base.base_text_encoder import BaseTextEncoder
 from src.logger.utils import plot_spectrogram_to_buf
@@ -59,6 +60,10 @@ class Trainer(BaseTrainer):
         self.evaluation_metrics = MetricTracker(
             "total_loss", *[m.name for m in self.metrics], writer=self.writer
         )
+        if self.config["vocoder"]:
+            self.vocoder = Vocoder(self.config["vocoder"]["path"])
+            self.vocoder = self.vocoder.to(device)
+            self.vocoder.eval()
 
     @staticmethod
     def move_batch_to_device(batch, device: torch.device):
@@ -167,6 +172,9 @@ class Trainer(BaseTrainer):
 
         for met in self.metrics:
             metrics.update(met.name, met(**batch))
+
+        batch["pred_audio"] = self.vocoder.infer(batch["pred_mel"]).data.cpu().numpy()
+
         return batch
 
     def _evaluation_epoch(self, epoch, part, dataloader):
@@ -178,6 +186,7 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         self.evaluation_metrics.reset()
+
         with torch.no_grad():
             for batch_idx, batch in tqdm(
                     enumerate(dataloader),
@@ -189,6 +198,7 @@ class Trainer(BaseTrainer):
                     is_train=False,
                     metrics=self.evaluation_metrics,
                 )
+
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
             #self._log_predictions(**batch)
@@ -217,24 +227,25 @@ class Trainer(BaseTrainer):
             predicted,
             predictor_targets,
             audio_path,
+            pred_audio,
             examples_to_log=10,
             *args,
             **kwargs,
     ):
-        # TODO: implement logging of beam search results
         if self.writer is None:
             return
 
-        tuples = list(zip(text, phone, *predicted, *predictor_targets, audio_path))
+        tuples = list(zip(text, phone, *predicted, *predictor_targets, pred_audio, audio_path))
         shuffle(tuples)
         rows = {}
-        for txt, ph, duration_pred, pitch_pred, energy_pred, duration, pitch, energy, audio_path in tuples[:examples_to_log]:
+        for txt, ph, duration_pred, pitch_pred, energy_pred, duration, pitch, energy, pred_audio, audio_path in tuples[:examples_to_log]:
             d_p = ' '.join([str(s) for s in duration_pred.squeeze(). tolist()])
             p_p = ' '.join([str(s) for s in pitch_pred.squeeze().tolist()])
             e_p = ' '.join([str(s) for s in energy_pred.squeeze().tolist()])
             d = ' '.join([str(s) for s in duration.squeeze().tolist()])
             p = ' '.join([str(s) for s in pitch.squeeze().tolist()])
             e = ' '.join([str(s) for s in energy.squeeze().tolist()])
+            audio = pred_audio.detach().cpu().numpy().T
             rows[Path(audio_path).name] = {
                 "text": txt,
                 "phoneme": ph,
@@ -244,6 +255,7 @@ class Trainer(BaseTrainer):
                 "duration_target": d,
                 "pitch_target": p,
                 "energy_target": e,
+                "pred_audio": self.writer.wandb.Audio(audio, sample_rate=self.config["preprocessing"]["sr"])
             }
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
 
@@ -251,6 +263,10 @@ class Trainer(BaseTrainer):
         spectrogram = random.choice(spectrogram_batch.detach().cpu())
         image = PIL.Image.open(plot_spectrogram_to_buf(spectrogram))
         self.writer.add_image(spec_name, ToTensor()(image))
+
+    def _log_audio(self, audio_batch, name, sr=22500):
+        audio = random.choice(audio_batch.detach().cpu())
+        self.writer.add_audio(name, audio, sample_rate=sr)
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):

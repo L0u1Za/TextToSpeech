@@ -13,11 +13,11 @@ from src.utils.parse_config import ConfigParser
 
 logger = logging.getLogger(__name__)
 
+from speechbrain.utils.data_utils import download_file
 
-#from speechbrain.utils.data_utils import download_file
-#URL_LINKS = {
-#    "g2p": "https://drive.google.com/file/d/1X8XB-_j6qi9PFQAVwOeomIwLNY8dH6kq/view?usp=sharing",
-#}
+URL_LINKS = {
+    "waveglow": "https://drive.google.com/uc?export=download&id=1rpK8CzAAirq9sWZhe9nlfvxMF1dRgFbF",
+}
 
 class BaseDataset(Dataset):
     def __init__(
@@ -36,6 +36,9 @@ class BaseDataset(Dataset):
         self.wave_augs = wave_augs
         self.spec_augs = spec_augs
         self.log_spec = config_parser["preprocessing"]["log_spec"]
+
+        #if self.config_parser["vocoder"]:
+        #    download_file(URL_LINKS["waveglow"], self.config_parser["vocoder"]["path"])
 
         self._assert_index_is_valid(index)
         index = self._filter_records_from_dataset(index, max_audio_length, max_text_length, limit)

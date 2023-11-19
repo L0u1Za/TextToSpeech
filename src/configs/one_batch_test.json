@@ -61,6 +61,9 @@
       "pad": 0
     }
   },
+  "vocoder": {
+    "path": "data/vocoder/waveglow_256channels_universal_v5.pt"
+  },
   "data": {
     "train": {
       "batch_size": 2,
