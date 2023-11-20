@@ -69,7 +69,7 @@
         {
           "type": "LJspeechDataset",
           "args": {
-            "data_dir": "/kaggle/working/",
+            "data_dir": "/kaggle/input/notebook0d344beaf8",
             "index_dir": "/kaggle/working/",
             "part": "train",
             "max_audio_length": 40.0,
@@ -85,7 +85,7 @@
         {
           "type": "LJspeechDataset",
           "args": {
-            "data_dir": "/kaggle/working/",
+            "data_dir": "/kaggle/input/notebook0d344beaf8",
             "index_dir": "/kaggle/working/",
             "part": "test"
           }
