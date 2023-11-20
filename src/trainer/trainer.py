@@ -15,9 +15,9 @@ from src.base import BaseTrainer
 from src.base.base_text_encoder import BaseTextEncoder
 from src.logger.utils import plot_spectrogram_to_buf
 from src.metric.utils import calc_cer, calc_wer
-from src.utils import inf_loop, MetricTracker
+from src.utils import inf_loop, MetricTracker, get_WaveGlow
 
-from time import time
+import waveglow
 
 class Trainer(BaseTrainer):
     """
@@ -60,10 +60,13 @@ class Trainer(BaseTrainer):
         self.evaluation_metrics = MetricTracker(
             "total_loss", *[m.name for m in self.metrics], writer=self.writer
         )
+
         if self.config["vocoder"]:
-            self.vocoder = Vocoder(self.config["vocoder"]["path"])
-            self.vocoder = self.vocoder.to(device)
-            self.vocoder.eval()
+            #self.vocoder = Vocoder(self.config["vocoder"]["path"])
+            #self.vocoder = self.vocoder.to(device)
+            #self.vocoder.eval()
+            self.vocoder = get_WaveGlow(self.config["vocoder"]["path"])
+            self.vocoder = self.vocoder.to(device).eval()
 
     @staticmethod
     def move_batch_to_device(batch, device: torch.device):
@@ -173,8 +176,6 @@ class Trainer(BaseTrainer):
         for met in self.metrics:
             metrics.update(met.name, met(**batch))
 
-        batch["pred_audio"] = self.vocoder.infer(batch["pred_mel"]).data.cpu().numpy()
-
         return batch
 
     def _evaluation_epoch(self, epoch, part, dataloader):
@@ -223,6 +224,7 @@ class Trainer(BaseTrainer):
     def _log_predictions(
             self,
             text,
+            pred_mel,
             phone,
             predicted,
             predictor_targets,
@@ -235,17 +237,19 @@ class Trainer(BaseTrainer):
         if self.writer is None:
             return
 
-        tuples = list(zip(text, phone, *predicted, *predictor_targets, pred_audio, audio_path))
+        tuples = list(zip(pred_mel, text, phone, *predicted, *predictor_targets, audio_path))
         shuffle(tuples)
         rows = {}
-        for txt, ph, duration_pred, pitch_pred, energy_pred, duration, pitch, energy, pred_audio, audio_path in tuples[:examples_to_log]:
+        for p_mel, txt, ph, duration_pred, pitch_pred, energy_pred, duration, pitch, energy, audio_path in tuples[:examples_to_log]:
             d_p = ' '.join([str(s) for s in duration_pred.squeeze(). tolist()])
             p_p = ' '.join([str(s) for s in pitch_pred.squeeze().tolist()])
             e_p = ' '.join([str(s) for s in energy_pred.squeeze().tolist()])
             d = ' '.join([str(s) for s in duration.squeeze().tolist()])
             p = ' '.join([str(s) for s in pitch.squeeze().tolist()])
             e = ' '.join([str(s) for s in energy.squeeze().tolist()])
-            audio = pred_audio.detach().cpu().numpy().T
+
+            audio = waveglow.inference.get_wav(p_mel, self.vocoder)
+
             rows[Path(audio_path).name] = {
                 "text": txt,
                 "phoneme": ph,

@@ -5,7 +5,7 @@ class Vocoder(nn.Module):
     def __init__(self, path):
         super().__init__()
 
-        model = torch.load(path, map_location='cpu')[
+        model = torch.load(path)[
             'model']
         self.net = model.remove_weightnorm(model)
 

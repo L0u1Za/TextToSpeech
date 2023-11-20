@@ -14,9 +14,11 @@ from src.utils.parse_config import ConfigParser
 logger = logging.getLogger(__name__)
 
 from speechbrain.utils.data_utils import download_file
+from pathlib import Path
+import gdown
 
 URL_LINKS = {
-    "waveglow": "https://drive.google.com/uc?export=download&id=1rpK8CzAAirq9sWZhe9nlfvxMF1dRgFbF",
+    "waveglow": "https://drive.google.com/u/0/uc?id=1WsibBTsuRg_SF2Z6L6NFRTT-NjEy1oTx",
 }
 
 class BaseDataset(Dataset):
@@ -37,8 +39,11 @@ class BaseDataset(Dataset):
         self.spec_augs = spec_augs
         self.log_spec = config_parser["preprocessing"]["log_spec"]
 
-        #if self.config_parser["vocoder"]:
-        #    download_file(URL_LINKS["waveglow"], self.config_parser["vocoder"]["path"])
+        if self.config_parser["vocoder"]:
+            voc_path = Path(self.config_parser["vocoder"]["path"])
+            if not voc_path.exists():
+                gdown.download(URL_LINKS["waveglow"], self.config_parser["vocoder"]["path"])
+            #download_file(URL_LINKS["waveglow"], self.config_parser["vocoder"]["path"])
 
         self._assert_index_is_valid(index)
         index = self._filter_records_from_dataset(index, max_audio_length, max_text_length, limit)

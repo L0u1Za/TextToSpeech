@@ -62,7 +62,7 @@
     }
   },
   "vocoder": {
-    "path": "data/vocoder/waveglow_256channels_universal_v5.pt"
+    "path": "vocoder/waveglow_256channels_ljs_v2.pt"
   },
   "data": {
     "train": {

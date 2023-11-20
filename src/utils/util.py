@@ -102,3 +102,13 @@ def pad(input_ele, mel_max_length=None):
         out_list.append(one_batch_padded)
     out_padded = torch.stack(out_list)
     return out_padded
+
+def get_WaveGlow(path):
+    wave_glow = torch.load(path)['model']
+    wave_glow = wave_glow.remove_weightnorm(wave_glow)
+    wave_glow.cuda().eval()
+    for m in wave_glow.modules():
+        if 'Conv' in str(type(m)):
+            setattr(m, 'padding_mode', 'zeros')
+
+    return wave_glow
