@@ -103,7 +103,7 @@ def pad(input_ele, mel_max_length=None):
     out_padded = torch.stack(out_list)
     return out_padded
 
-def get_WaveGlow(path, device='cpu'):
+def get_WaveGlow(path, device='cuda'):
     wave_glow = torch.load(path)['model']
     wave_glow = wave_glow.remove_weightnorm(wave_glow).to(device)
     wave_glow.eval()
