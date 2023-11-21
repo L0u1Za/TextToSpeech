@@ -61,6 +61,9 @@
       "pad": 0
     }
   },
+  "vocoder": {
+    "path": "vocoder/waveglow_256channels_ljs_v2.pt"
+  },
   "data": {
     "train": {
       "batch_size": 2,
