@@ -1,2 +1,6 @@
-import waveglow.inference
-import waveglow.mel2samp
+from waveglow.inference import get_wav
+
+
+__all__ = [
+    "get_wav"
+]
