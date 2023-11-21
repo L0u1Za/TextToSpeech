@@ -10,14 +10,13 @@ from torch.nn.utils import clip_grad_norm_
 from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
-from src.model.vocoder import Vocoder
 from src.base import BaseTrainer
 from src.base.base_text_encoder import BaseTextEncoder
 from src.logger.utils import plot_spectrogram_to_buf
 from src.metric.utils import calc_cer, calc_wer
 from src.utils import inf_loop, MetricTracker, get_WaveGlow
 
-import waveglow
+from src.waveglow.inference import get_wav
 
 class Trainer(BaseTrainer):
     """
@@ -229,7 +228,6 @@ class Trainer(BaseTrainer):
             predicted,
             predictor_targets,
             audio_path,
-            pred_audio,
             examples_to_log=10,
             *args,
             **kwargs,
@@ -248,7 +246,7 @@ class Trainer(BaseTrainer):
             p = ' '.join([str(s) for s in pitch.squeeze().tolist()])
             e = ' '.join([str(s) for s in energy.squeeze().tolist()])
 
-            audio = waveglow.inference.get_wav(p_mel, self.vocoder)
+            audio = get_wav(p_mel.unsqueeze(0), self.vocoder)
 
             rows[Path(audio_path).name] = {
                 "text": txt,
