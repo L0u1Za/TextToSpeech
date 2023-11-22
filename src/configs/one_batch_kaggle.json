@@ -62,7 +62,7 @@
         }
     },
     "vocoder": {
-        "path": "/kaggle/working/vocoder/waveglow_256channels_ljs_v2.pt"
+        "path": "/kaggle/working/waveglow_256channels_ljs_v2.pt"
     },
     "data": {
         "train": {
