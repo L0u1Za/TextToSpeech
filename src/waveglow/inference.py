@@ -36,8 +36,8 @@ def inference(mel, waveglow, audio_path, sigma=1.0, sampling_rate=22050):
         audio = waveglow.infer(mel, sigma=sigma)
         audio = audio * MAX_WAV_VALUE
     audio = audio.squeeze()
-    audio = audio.cpu().numpy()
-    audio = audio.astype('int16')
+    audio = audio.cpu()
+
     write(audio_path, sampling_rate, audio)
 
 
