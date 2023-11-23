@@ -23,12 +23,12 @@ DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "checkpoint.pth"
 def synthesis(model, phonemes, alphas, device='cuda'):
     src_pos = np.array([i+1 for i in range(phonemes.shape[1])])
     src_pos = np.stack([src_pos])
-    sequence = torch.from_numpy(phonemes).long().to(device)
+    sequence = phonemes.long().to(device)
     src_pos = torch.from_numpy(src_pos).long().to(device)
 
     with torch.no_grad():
-        mel = model.forward(sequence, src_pos, alphas=alphas)
-    return mel[0].cpu().transpose(0, 1), mel.contiguous().transpose(1, 2)
+        mel, predictions = model.forward(sequence, src_pos, alphas=alphas)
+    return mel.cpu(), mel
 
 
 def get_data(text_encoder):
@@ -36,6 +36,11 @@ def get_data(text_encoder):
         "A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest",
         "Massachusetts Institute of Technology may be best known for its math, science and engineering education",
         "Wasserstein distance or Kantorovich Rubinstein metric is a distance function defined between probability distributions on a given metric space",
+    ]
+    tests = [
+        'EY1 D IY0 F IH1 B R IH0 L EY2 T ER0 IH1 Z EY1 D IH0 V AY1 S DH AH0 T G IH1 V Z EY1 HH AY1 EH1 N ER0 JH IY0 IH0 L EH1 K T R IH0 K SH AA1 K T UW1 DH IY0 HH AA1 R T AH1 V S AH1 M W AH2 N HH UW1 IH1 Z IH1 N K AA1 R D IY0 AE2 K ER0 EH1 S T',
+        'M AE2 S AH0 CH UW1 S AH0 T S IH1 N S T AH0 T UW2 T AH1 V T EH0 K N AA1 L AH0 JH IY0 M EY1 B IY1 B EH1 S T N OW1 N F R ER0 IH1 T S M AE1 TH S AY1 AH0 N S AH0 N D EH1 N JH AH0 N IH1 R IH0 NG EH2 JH Y UW0 K EY1 SH AH0 N',
+        'W AA1 S ER0 S T IY2 N D IH1 S T AH0 N S ER0 K AE1 N T ER0 OW0 V IH2 CH R UW1 B IH0 N S T IY2 N M EH1 T R IH0 K IH1 Z EY1 D IH1 S T AH0 N S F AH1 NG K SH AH0 N D IH0 F AY1 N D B IY0 T W IY1 N P R AA2 B AH0 B IH1 L AH0 T IY0 D IH2 S T R AH0 B Y UW1 SH AH0 N Z AO1 N EY1 G IH1 V IH0 N M EH1 T R IH0 K S P EY1 S'
     ]
     data_list = list(text_encoder.encode(test) for test in tests)
 
@@ -66,9 +71,9 @@ def main(config, out_file):
     model.eval()
 
 
-    WaveGlow = get_WaveGlow()
+    WaveGlow = get_WaveGlow('vocoder/waveglow_256channels_ljs_v2.pt')
 
-    data_list = get_data()
+    data_list = get_data(text_encoder)
     for duration in [0.8, 1., 1.2]:
         for pitch in [0.8, 1., 1.2]:
             for energy in [0.8, 1., 1.2]:

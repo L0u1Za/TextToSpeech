@@ -346,7 +346,9 @@ class LengthRegulator(nn.Module):
 
     def forward(self, x, duration, max_len):
         output, mel_len = self.LR(x, duration, max_len)
-        return output, mel_len
+        mel_pos = torch.stack(
+                [torch.Tensor([i+1 for i in range(output.size(1))])]).long().to(x.device)
+        return output, mel_pos
 
 class VarianceAdaptor(nn.Module):
     def __init__(self, in_channels, filter_channels, kernel_size, n_bins, encoder_dim, dropout):
@@ -377,9 +379,9 @@ class VarianceAdaptor(nn.Module):
             alphas = [1.0, 1.0, 1.0]
         durations = self.duration_predictor(inputs) * alphas[0]
         if (self.training and true_duration is not None):
-            outputs, _ = self.length_regulator(inputs, duration=true_duration, max_len=mel_max_len)
+            outputs, mel_len = self.length_regulator(inputs, duration=true_duration, max_len=mel_max_len)
         else:
-            outputs, _ = self.length_regulator(inputs, duration=durations.long(), max_len=mel_max_len)
+            outputs, mel_len = self.length_regulator(inputs, duration=durations.long(), max_len=mel_max_len)
 
         pitches = self.pitch_predictor(outputs) * alphas[1]
         if (self.training and true_pitch is not None):
@@ -396,7 +398,7 @@ class VarianceAdaptor(nn.Module):
             indices = torch.bucketize(energies, self.energy_quantization, out_int32=True)
         energy_embeds = self.energy_embedding(indices)
         outputs = outputs + energy_embeds
-        return outputs, (durations, pitches, energies)
+        return outputs, (durations, pitches, energies), mel_len
 
 class FastSpeech2(nn.Module):
     def __init__(self, vocab_size, encoder_dim, encoder_conv1d_filter_size, encoder_head, encoder_n_layer, max_seq_len, pad, encoder_dropout, decoder_dim, decoder_conv1d_filter_size, decoder_head, decoder_n_layer, decoder_dropout, fft_conv1d_kernel, fft_conv1d_padding, variance_filter_size, variance_kernel_size, variance_n_bins, variance_dropout, num_mels, **batch):
@@ -438,7 +440,9 @@ class FastSpeech2(nn.Module):
     def forward(self, phone_encoded, src_pos, mel_pos=None, mel_max_len=None, phone_duration=None, pitch=None, energy=None, alphas=None, **batch):
         """ phone_duration, pitch, energy -> train """
         outputs, _ = self.encoder(phone_encoded, src_pos)
-        outputs, predictions = self.variance_adaptor(outputs, phone_duration, pitch, energy, mel_max_len, alphas)
+        outputs, predictions, mel_len = self.variance_adaptor(outputs, phone_duration, pitch, energy, mel_max_len, alphas)
+        if (mel_pos is None):
+            mel_pos = mel_len
         outputs = self.decoder(outputs, mel_pos)
 
         outputs = self.head(outputs)
