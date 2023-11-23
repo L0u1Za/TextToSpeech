@@ -50,9 +50,6 @@ def main(config, out_file):
     # text_encoder
     text_encoder = config.get_text_encoder()
 
-    # setup data_loader instances
-    dataloaders = get_dataloaders(config, text_encoder)
-
     # build model architecture
     model = config.init_obj(config["arch"], module_model, n_class=len(text_encoder))
     logger.info(model)
