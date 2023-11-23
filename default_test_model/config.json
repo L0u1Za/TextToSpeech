@@ -2,10 +2,27 @@
     "name": "default_config",
     "n_gpu": 1,
     "preprocessing": {
-        "sr": 16000,
+        "sr": 22050,
+        "g2p": true,
+        "stft": {
+            "type": "MelSpectrogram",
+            "args": {
+                "n_mels": 80,
+                "sample_rate": 22050,
+                "win_length": 1024,
+                "hop_length": 256,
+                "n_fft": 1024
+            }
+        },
         "spectrogram": {
             "type": "MelSpectrogram",
-            "args": {}
+            "args": {
+                "sample_rate": 22050,
+                "n_mels": 80,
+                "win_length": 1024,
+                "hop_length": 256,
+                "n_fft": 1024
+            }
         },
         "log_spec": true
     },
@@ -14,12 +31,38 @@
         "spectrogram": []
     },
     "arch": {
-        "type": "DeepSpeechModel",
+        "type": "FastSpeech2",
         "args": {
-            "n_feats": 128,
-            "rnn_layers": 5,
-            "rnn_hidden_size": 512
+            "vocab_size": 300,
+            "max_seq_len": 1000,
+            "encoder_dim": 256,
+            "encoder_n_layer": 4,
+            "encoder_head": 2,
+            "encoder_conv1d_filter_size": 1024,
+            "encoder_dropout": 0.1,
+            "decoder_dim": 256,
+            "decoder_n_layer": 4,
+            "decoder_head": 2,
+            "decoder_conv1d_filter_size": 1024,
+            "decoder_dropout": 0.1,
+            "fft_conv1d_kernel": [
+                9,
+                1
+            ],
+            "fft_conv1d_padding": [
+                4,
+                0
+            ],
+            "variance_filter_size": 256,
+            "variance_kernel_size": 3,
+            "variance_dropout": 0.5,
+            "variance_n_bins": 256,
+            "num_mels": 80,
+            "pad": 0
         }
+    },
+    "vocoder": {
+        "path": "/kaggle/working/waveglow_256channels_ljs_v2.pt"
     },
     "data": {
         "train": {
@@ -27,80 +70,43 @@
             "num_workers": 5,
             "datasets": [
                 {
-                    "type": "LibrispeechDataset",
+                    "type": "LJspeechDataset",
                     "args": {
-                        "data_dir": "/kaggle/input/librispeech",
+                        "data_dir": "/kaggle/working",
                         "index_dir": "/kaggle/working",
-                        "part": "train-clean-100",
-                        "max_audio_length": 40.0,
-                        "max_text_length": 400
-                    }
-                },
-                {
-                    "type": "LibrispeechDataset",
-                    "args": {
-                        "data_dir": "/kaggle/input/librispeech",
-                        "index_dir": "/kaggle/working",
-                        "part": "train-clean-360",
+                        "part": "train",
                         "max_audio_length": 40.0,
                         "max_text_length": 400
                     }
                 }
             ]
         },
-        "val": {
+        "test": {
             "batch_size": 30,
             "num_workers": 5,
             "datasets": [
                 {
-                    "type": "LibrispeechDataset",
+                    "type": "LJspeechDataset",
                     "args": {
-                        "data_dir": "/kaggle/input/librispeech",
+                        "data_dir": "/kaggle/working",
                         "index_dir": "/kaggle/working",
-                        "part": "dev-clean"
-                    }
-                }
-            ]
-        },
-        "test-clean": {
-            "batch_size": 30,
-            "num_workers": 5,
-            "datasets": [
-                {
-                    "type": "LibrispeechDataset",
-                    "args": {
-                        "data_dir": "/kaggle/input/librispeech",
-                        "index_dir": "/kaggle/working",
-                        "part": "test-clean"
+                        "part": "test"
                     }
                 }
             ]
         }
     },
     "optimizer": {
-        "type": "Adam",
+        "type": "AdamW",
         "args": {
             "lr": 0.0003
         }
     },
     "loss": {
-        "type": "CTCLoss",
+        "type": "FastSpeechLoss",
         "args": {}
     },
-    "metrics": [
-        {
-            "type": "ArgmaxWERMetric",
-            "args": {
-                "name": "WER (argmax)"
-            }
-        },
-        {
-            "type": "ArgmaxCERMetric",
-            "args": {
-                "name": "CER (argmax)"
-            }
-        }
-    ],
+    "metrics": [],
     "lr_scheduler": {
         "type": "OneCycleLR",
         "args": {
@@ -119,7 +125,7 @@
         "monitor": "min val_loss",
         "early_stop": 100,
         "visualize": "wandb",
-        "wandb_project": "asr_project",
+        "wandb_project": "tts_project",
         "len_epoch": 100,
         "grad_norm_clip": 10
     }

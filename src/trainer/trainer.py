@@ -60,12 +60,14 @@ class Trainer(BaseTrainer):
             "total_loss", *[m.name for m in self.metrics], writer=self.writer
         )
 
-        if self.config["vocoder"]:
+        try:
             #self.vocoder = Vocoder(self.config["vocoder"]["path"])
             #self.vocoder = self.vocoder.to(device)
             #self.vocoder.eval()
             self.vocoder = get_WaveGlow(self.config["vocoder"]["path"])
             self.vocoder = self.vocoder.to(device).eval()
+        except:
+            pass
 
     @staticmethod
     def move_batch_to_device(batch, device: torch.device):
@@ -122,7 +124,7 @@ class Trainer(BaseTrainer):
                 self.writer.add_scalar(
                     "learning rate", self.lr_scheduler.get_last_lr()[0]
                 )
-                self._log_predictions(**batch)
+                #self._log_predictions(**batch)
                 self._log_spectrogram(batch["spectrogram"])
                 self._log_spectrogram(batch["pred_mel"], "predicted_spectrogram")
                 self._log_scalars(self.train_metrics)
