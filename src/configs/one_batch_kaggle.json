@@ -1,0 +1,131 @@
+{
+    "name": "one_batch_kaggle",
+    "n_gpu": 1,
+    "preprocessing": {
+        "sr": 22050,
+        "g2p": true,
+        "stft": {
+        "type": "MelSpectrogram",
+        "args": {
+            "n_mels": 80,
+            "sample_rate": 22050,
+            "win_length": 1024,
+            "hop_length": 256,
+            "n_fft": 1024
+        }
+        },
+        "spectrogram": {
+        "type": "MelSpectrogram",
+        "args": {
+            "sample_rate": 22050,
+            "n_mels": 80,
+            "win_length": 1024,
+            "hop_length": 256,
+            "n_fft": 1024
+        }
+        },
+        "log_spec": true
+    },
+    "augmentations": {
+        "wave": [],
+        "spectrogram": []
+    },
+    "arch": {
+        "type": "FastSpeech2",
+        "args": {
+        "vocab_size": 300,
+        "max_seq_len": 1000,
+
+        "encoder_dim": 256,
+        "encoder_n_layer": 4,
+        "encoder_head": 2,
+        "encoder_conv1d_filter_size": 1024,
+        "encoder_dropout": 0.1,
+
+        "decoder_dim": 256,
+        "decoder_n_layer": 4,
+        "decoder_head": 2,
+        "decoder_conv1d_filter_size": 1024,
+        "decoder_dropout": 0.1,
+
+        "fft_conv1d_kernel": [9, 1],
+        "fft_conv1d_padding": [4, 0],
+
+        "variance_filter_size": 256,
+        "variance_kernel_size": 3,
+        "variance_dropout": 0.5,
+        "variance_n_bins": 256,
+
+        "num_mels": 80,
+
+        "pad": 0
+        }
+    },
+    "vocoder": {
+        "path": "/kaggle/working/waveglow_256channels_ljs_v2.pt"
+    },
+    "data": {
+        "train": {
+        "batch_size": 2,
+        "datasets": [
+            {
+            "type": "LJspeechDataset",
+            "args": {
+                "data_dir": "/kaggle/working/",
+                "index_dir": "/kaggle/working/",
+                "part": "train",
+                "limit": 2
+            }
+            }
+        ]
+        },
+        "test": {
+        "batch_size": 2,
+        "datasets": [
+            {
+            "type": "LJspeechDataset",
+            "args": {
+                "data_dir": "/kaggle/working/",
+                "index_dir": "/kaggle/working/",
+                "part": "test",
+                "limit": 2
+            }
+            }
+        ]
+        }
+    },
+    "optimizer": {
+        "type": "AdamW",
+        "args": {
+        "lr": 3e-3
+        }
+    },
+    "loss": {
+        "type": "FastSpeechLoss",
+        "args": {}
+    },
+    "metrics": [
+    ],
+    "lr_scheduler": {
+        "type": "OneCycleLR",
+        "args": {
+        "steps_per_epoch": 100,
+        "epochs": 100,
+        "anneal_strategy": "cos",
+        "max_lr": 3e-3,
+        "pct_start": 0.2
+        }
+    },
+    "trainer": {
+        "epochs": 100,
+        "len_epoch": 100,
+        "save_dir": "saved/",
+        "save_period": 5,
+        "verbosity": 2,
+        "monitor": "min val_loss",
+        "early_stop": 100,
+        "visualize": "wandb",
+        "wandb_project": "tts_project",
+        "grad_norm_clip": 10
+    }
+}

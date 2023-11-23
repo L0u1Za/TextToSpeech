@@ -16,8 +16,8 @@ pyctcdecode
 torchaudio~=2.1.0
 pillow
 
-montreal-forced-aligner
 transformers
 tgt
 pyworld
+waveglow
 gdown
