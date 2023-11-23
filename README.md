@@ -1,8 +1,40 @@
-# ASR project
+# TTS project
+
+## Vocoder
+
+To download vocoder, add
+```json
+"vocoder": {
+        "path": "<path_to_be_placed>"
+},
+```
+to config.json
+It will be waveglow v2 trained on ljspeech.
+
+## Graphemes and alignments
+
+I used pretrained MFA. You might download it [here]()
+or just add
+```json
+"preprocessing": {
+   ...
+   "g2p": true,
+   ...
+}
+```
+to config. It will be placed in the same directory, as your provided dataset.
+
+## Audio validation
+
+- `A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest`
+- `Massachusetts Institute of Technology may be best known for its math, science and engineering education`
+- `Wasserstein distance or Kantorovich Rubinstein metric is a distance function defined between probability distributions on a given metric space`
+
+These examples of synthezed audio are provided in directory `test_data`
 
 ## Report
 
-You may see the report if you follow [this link](https://api.wandb.ai/links/l0u1za/q4ofufk1)
+You may see the report if you follow [this link](https://wandb.ai/l0u1za/tts_project/reports/TTS-1--Vmlldzo2MDU2MDgx?accessToken=jgjjaaem4mrdmkg1zq0h6e1f7mfcsja31hsiti2h7ox1gva4tdexincbe45ugtrr)
 
 ## Installation guide
 
@@ -23,16 +55,7 @@ cd ./default_test_model
 
 It will be placed to `./default_test_model/checkpoint.pth`
 
-If you have some issues using bash utilities, you may download model directly from [google drive](https://drive.google.com/drive/folders/12nfElb7A6v7Y6Kd0z8qsIQo9FRUS2dg4?usp=sharing)
-
-
-## Run unit tests
-
-You may check the correct work of implementation using unit tests
-
-```shell
-python -m unittest discover src/tests
-```
+If you have some issues using bash utilities, you may download model directly from [google drive](https://drive.google.com/file/d/1Q4diwFZktzevEBnocQcIPRm03JPnu8GJ/view?usp=sharing)
 
 ## Run test model with prepared configuration
 
