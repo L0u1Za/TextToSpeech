@@ -71,7 +71,7 @@ def main(config, out_file):
     model.eval()
 
 
-    WaveGlow = get_WaveGlow('vocoder/waveglow_256channels_ljs_v2.pt')
+    WaveGlow = get_WaveGlow('/kaggle/working/waveglow_256channels_ljs_v2.pt')
 
     data_list = get_data(text_encoder)
     for duration in [0.8, 1., 1.2]:
@@ -83,7 +83,7 @@ def main(config, out_file):
 
                     inference(
                         mel_cuda, WaveGlow,
-                        f"results/d={duration}_p={pitch}_e={energy}_{i}_waveglow.wav"
+                        f"/kaggle/working/results/d={duration}_p={pitch}_e={energy}_{i}_waveglow.wav"
                     )
 
 
