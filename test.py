@@ -8,12 +8,38 @@ from tqdm import tqdm
 
 import src.model as module_model
 from src.trainer import Trainer
-from src.utils import ROOT_PATH
+from src.utils import ROOT_PATH, get_WaveGlow
 from src.utils.object_loading import get_dataloaders
 from src.utils.parse_config import ConfigParser
 
+from src.waveglow.inference import inference
+
+import numpy as np
+
+
 DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "checkpoint.pth"
 
+
+def synthesis(model, phonemes, alphas, device='cuda'):
+    src_pos = np.array([i+1 for i in range(phonemes.shape[1])])
+    src_pos = np.stack([src_pos])
+    sequence = torch.from_numpy(phonemes).long().to(device)
+    src_pos = torch.from_numpy(src_pos).long().to(device)
+
+    with torch.no_grad():
+        mel = model.forward(sequence, src_pos, alphas=alphas)
+    return mel[0].cpu().transpose(0, 1), mel.contiguous().transpose(1, 2)
+
+
+def get_data(text_encoder):
+    tests = [
+        "A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest",
+        "Massachusetts Institute of Technology may be best known for its math, science and engineering education",
+        "Wasserstein distance or Kantorovich Rubinstein metric is a distance function defined between probability distributions on a given metric space",
+    ]
+    data_list = list(text_encoder.encode(test) for test in tests)
+
+    return data_list
 
 def main(config, out_file):
     logger = config.get_logger("test")
@@ -42,31 +68,21 @@ def main(config, out_file):
     model = model.to(device)
     model.eval()
 
-    results = []
 
-    with torch.no_grad():
-        for batch_num, batch in enumerate(tqdm(dataloaders["test"])):
-            batch = Trainer.move_batch_to_device(batch, device)
-            output = model(**batch)
-            if type(output) is dict:
-                batch.update(output)
-            else:
-                batch["logits"] = output
+    WaveGlow = get_WaveGlow()
 
-            for i in range(len(batch["text"])):
-                argmax = batch["argmax"][i]
-                argmax = argmax[: int(batch["log_probs_length"][i])]
-                results.append(
-                    {
-                        "ground_trurh": batch["text"][i],
-                        "pred_text_argmax": text_encoder.ctc_decode(argmax.cpu().numpy()),
-                        "pred_text_beam_search": text_encoder.ctc_beam_search(
-                            batch["probs"][i], batch["log_probs_length"][i], beam_size=100
-                        )[:10],
-                    }
-                )
-    with Path(out_file).open("w") as f:
-        json.dump(results, f, indent=2)
+    data_list = get_data()
+    for duration in [0.8, 1., 1.2]:
+        for pitch in [0.8, 1., 1.2]:
+            for energy in [0.8, 1., 1.2]:
+                for i, phn in tqdm(enumerate(data_list)):
+                    mel, mel_cuda = synthesis(model, phn, [duration, pitch, energy])
+                    os.makedirs("results", exist_ok=True)
+
+                    inference(
+                        mel_cuda, WaveGlow,
+                        f"results/d={duration}_p={pitch}_e={energy}_{i}_waveglow.wav"
+                    )
 
 
 if __name__ == "__main__":

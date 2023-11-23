@@ -354,9 +354,7 @@ class VarianceAdaptor(nn.Module):
 
         pitch_min, pitch_max = (0, 300)
         self.pitch_quantization = nn.Parameter(
-            torch.exp(
-                torch.linspace(np.log(pitch_min), np.log(pitch_max), n_bins - 1)
-            ),
+            torch.linspace(pitch_min, pitch_max, n_bins - 1),
             requires_grad=False,
         )
         energy_min, energy_max = (0, 200)
