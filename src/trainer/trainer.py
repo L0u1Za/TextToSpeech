@@ -60,12 +60,14 @@ class Trainer(BaseTrainer):
             "total_loss", *[m.name for m in self.metrics], writer=self.writer
         )
 
-        if self.config["vocoder"]:
+        try:
             #self.vocoder = Vocoder(self.config["vocoder"]["path"])
             #self.vocoder = self.vocoder.to(device)
             #self.vocoder.eval()
             self.vocoder = get_WaveGlow(self.config["vocoder"]["path"])
             self.vocoder = self.vocoder.to(device).eval()
+        except:
+            pass
 
     @staticmethod
     def move_batch_to_device(batch, device: torch.device):

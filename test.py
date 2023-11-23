@@ -8,12 +8,43 @@ from tqdm import tqdm
 
 import src.model as module_model
 from src.trainer import Trainer
-from src.utils import ROOT_PATH
+from src.utils import ROOT_PATH, get_WaveGlow
 from src.utils.object_loading import get_dataloaders
 from src.utils.parse_config import ConfigParser
 
+from src.waveglow.inference import inference
+
+import numpy as np
+
+
 DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "checkpoint.pth"
 
+
+def synthesis(model, phonemes, alphas, device='cuda'):
+    src_pos = np.array([i+1 for i in range(phonemes.shape[1])])
+    src_pos = np.stack([src_pos])
+    sequence = phonemes.long().to(device)
+    src_pos = torch.from_numpy(src_pos).long().to(device)
+
+    with torch.no_grad():
+        mel, predictions = model.forward(sequence, src_pos, alphas=alphas)
+    return mel.cpu(), mel
+
+
+def get_data(text_encoder):
+    tests = [
+        "A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest",
+        "Massachusetts Institute of Technology may be best known for its math, science and engineering education",
+        "Wasserstein distance or Kantorovich Rubinstein metric is a distance function defined between probability distributions on a given metric space",
+    ]
+    tests = [
+        'EY1 D IY0 F IH1 B R IH0 L EY2 T ER0 IH1 Z EY1 D IH0 V AY1 S DH AH0 T G IH1 V Z EY1 HH AY1 EH1 N ER0 JH IY0 IH0 L EH1 K T R IH0 K SH AA1 K T UW1 DH IY0 HH AA1 R T AH1 V S AH1 M W AH2 N HH UW1 IH1 Z IH1 N K AA1 R D IY0 AE2 K ER0 EH1 S T',
+        'M AE2 S AH0 CH UW1 S AH0 T S IH1 N S T AH0 T UW2 T AH1 V T EH0 K N AA1 L AH0 JH IY0 M EY1 B IY1 B EH1 S T N OW1 N F R ER0 IH1 T S M AE1 TH S AY1 AH0 N S AH0 N D EH1 N JH AH0 N IH1 R IH0 NG EH2 JH Y UW0 K EY1 SH AH0 N',
+        'W AA1 S ER0 S T IY2 N D IH1 S T AH0 N S ER0 K AE1 N T ER0 OW0 V IH2 CH R UW1 B IH0 N S T IY2 N M EH1 T R IH0 K IH1 Z EY1 D IH1 S T AH0 N S F AH1 NG K SH AH0 N D IH0 F AY1 N D B IY0 T W IY1 N P R AA2 B AH0 B IH1 L AH0 T IY0 D IH2 S T R AH0 B Y UW1 SH AH0 N Z AO1 N EY1 G IH1 V IH0 N M EH1 T R IH0 K S P EY1 S'
+    ]
+    data_list = list(text_encoder.encode(test) for test in tests)
+
+    return data_list
 
 def main(config, out_file):
     logger = config.get_logger("test")
@@ -23,9 +54,6 @@ def main(config, out_file):
 
     # text_encoder
     text_encoder = config.get_text_encoder()
-
-    # setup data_loader instances
-    dataloaders = get_dataloaders(config, text_encoder)
 
     # build model architecture
     model = config.init_obj(config["arch"], module_model, n_class=len(text_encoder))
@@ -42,36 +70,21 @@ def main(config, out_file):
     model = model.to(device)
     model.eval()
 
-    results = []
 
-    with torch.no_grad():
-        for batch_num, batch in enumerate(tqdm(dataloaders["test"])):
-            batch = Trainer.move_batch_to_device(batch, device)
-            output = model(**batch)
-            if type(output) is dict:
-                batch.update(output)
-            else:
-                batch["logits"] = output
-            batch["log_probs"] = torch.log_softmax(batch["logits"], dim=-1)
-            batch["log_probs_length"] = model.transform_input_lengths(
-                batch["spectrogram_length"]
-            )
-            batch["probs"] = batch["log_probs"].exp().cpu()
-            batch["argmax"] = batch["probs"].argmax(-1)
-            for i in range(len(batch["text"])):
-                argmax = batch["argmax"][i]
-                argmax = argmax[: int(batch["log_probs_length"][i])]
-                results.append(
-                    {
-                        "ground_trurh": batch["text"][i],
-                        "pred_text_argmax": text_encoder.ctc_decode(argmax.cpu().numpy()),
-                        "pred_text_beam_search": text_encoder.ctc_beam_search(
-                            batch["probs"][i], batch["log_probs_length"][i], beam_size=100
-                        )[:10],
-                    }
-                )
-    with Path(out_file).open("w") as f:
-        json.dump(results, f, indent=2)
+    WaveGlow = get_WaveGlow('vocoder/waveglow_256channels_ljs_v2.pt')
+
+    data_list = get_data(text_encoder)
+    for duration in [0.8, 1., 1.2]:
+        for pitch in [0.8, 1., 1.2]:
+            for energy in [0.8, 1., 1.2]:
+                for i, phn in tqdm(enumerate(data_list)):
+                    mel, mel_cuda = synthesis(model, phn, [duration, pitch, energy])
+                    os.makedirs("results", exist_ok=True)
+
+                    inference(
+                        mel_cuda, WaveGlow,
+                        f"results/d={duration}_p={pitch}_e={energy}_{i}_waveglow.wav"
+                    )
 
 
 if __name__ == "__main__":
